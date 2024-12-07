@@ -9,8 +9,6 @@ export interface AmazonApiProps {
   query?: Record<string, string>;
 }
 
-const MAX_RETRIES = 5; // Maximum retries for 503 errors
-
 export const amazonApi = async <T>(props: AmazonApiProps) => {
   const { amazonBase, method, path, body, headers = {}, query } = props;
 
@@ -22,46 +20,35 @@ export const amazonApi = async <T>(props: AmazonApiProps) => {
     );
   }
 
-  // Retry mechanism
-  let attempt = 0;
-  let lastError: Error | null = null;
-
-  while (attempt < MAX_RETRIES) {
+  let response;
+  let result;
+  
+  while (true) { // Infinite loop until 200 status code is returned
     try {
-      const response = await fetch(url.toString(), {
+      response = await fetch(url.toString(), {
         method,
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": getRandomUserAgent(), // Randomize User-Agent on each request
+          "User-Agent": getRandomUserAgent(), // Randomized User-Agent
           ...headers,
         },
         body: body ? JSON.stringify(body) : undefined,
       });
 
       const { status, ok } = response;
-      const result = tryParseJson(await response.text());
+      result = tryParseJson(await response.text());
 
-      if (!ok) {
-        throw new HTTPException(status as any, {
-          message: `API Error Occurred with status code ${status}`,
-        });
+      if (ok) { // If 200 OK is returned
+        return result as T;
       }
 
-      return result as T;
+      // If response is not OK (i.e., status is not 200), continue retrying
+      console.log(`Received status code ${status}, retrying...`);
+
     } catch (error) {
-      if (error instanceof HTTPException && error.status === 503) {
-        attempt++;
-        lastError = error;
-        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
-        console.log(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay)); // Wait before retry
-      } else {
-        throw error; // Rethrow any other errors immediately
-      }
+      console.error("Error during request, retrying...", error);
     }
   }
-
-  throw new Error(`Max retries reached. Last error: ${lastError?.message}`);
 };
 
 // Randomized User-Agent to avoid detection
