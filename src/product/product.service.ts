@@ -15,12 +15,20 @@ export const get = async ({
   id: string;
   amazonBase: string;
 }): Promise<Product> => {
+  // Log the URL being called
+  const requestUrl = `${amazonBase}/dp/${id}`;
+  console.log(`🚀 Sending request to URL: ${requestUrl}`);
+
   const raw = await amazonApi<string>({
     method: "GET",
     path: `/dp/${id}`,
     amazonBase,
   });
 
+  // Log the raw HTML response
+  console.log("🔍 Received raw HTML response:");
+  console.log(raw);
+  
   const { document } = parseHTML(raw);
   const ppd = document.querySelector("#ppd");
   if (!ppd) {
