@@ -15,28 +15,42 @@ export const get = async ({
   id: string;
   amazonBase: string;
 }): Promise<Product> => {
-  // Log the URL being called
   const requestUrl = `${amazonBase}/dp/${id}`;
-  console.log(`🚀 Sending request to URL: ${requestUrl}`);
+  let response: string | null = null;
+  let attempt = 0;
 
-  const raw = await amazonApi<string>({
-    method: "GET",
-    path: `/dp/${id}`,
-    amazonBase,
-  });
+  while (!response) {
+    attempt++;
+    try {
+      console.log(`🌐 Attempt ${attempt}: Sending request to URL: ${requestUrl}`);
+      
+      // Attempt to fetch the product details
+      const raw = await amazonApi<string>({
+        method: "GET",
+        path: `/dp/${id}`,
+        amazonBase,
+      });
 
-  // Log the raw HTML response
-  console.log("🔍 Received raw HTML response:");
-  console.log(raw);
-  
-  const { document } = parseHTML(raw);
+      // If response is successful, break out of the loop
+      if (raw) {
+        console.log(`✅ Success on attempt ${attempt}`);
+        response = raw;
+      }
+    } catch (error) {
+      console.error(`❌ Attempt ${attempt} failed:`, error);
+    }
+  }
+
+  // Parse the HTML once a valid response is received
+  const { document } = parseHTML(response);
   const ppd = document.querySelector("#ppd");
+
   if (!ppd) {
     throw new HTTPException(500, {
       message: "Product parsing failed in ppd",
     });
-  }
-
+  }  
+  
   // Extracting the title
   const titleElement = ppd.querySelector("#productTitle");
   const title = titleElement ? titleElement.textContent?.trim() : null;
