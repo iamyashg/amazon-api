@@ -9,6 +9,8 @@ export interface AmazonApiProps {
   query?: Record<string, string>;
 }
 
+const MAX_RETRIES = 5; // Maximum retries for 503 errors
+
 export const amazonApi = async <T>(props: AmazonApiProps) => {
   const { amazonBase, method, path, body, headers = {}, query } = props;
 
@@ -20,26 +22,57 @@ export const amazonApi = async <T>(props: AmazonApiProps) => {
     );
   }
 
-  const response = await fetch(url.toString(), {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      ...headers,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  // Retry mechanism
+  let attempt = 0;
+  let lastError: Error | null = null;
 
-  const { status, ok } = response;
-  const result = tryParseJson(await response.text());
+  while (attempt < MAX_RETRIES) {
+    try {
+      const response = await fetch(url.toString(), {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": getRandomUserAgent(), // Randomize User-Agent on each request
+          ...headers,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
 
-  if (!ok) {
-    throw new HTTPException(status as any, {
-      message: `API Error Occured with status code ${status}`,
-    });
+      const { status, ok } = response;
+      const result = tryParseJson(await response.text());
+
+      if (!ok) {
+        throw new HTTPException(status as any, {
+          message: `API Error Occurred with status code ${status}`,
+        });
+      }
+
+      return result as T;
+    } catch (error) {
+      if (error instanceof HTTPException && error.status === 503) {
+        attempt++;
+        lastError = error;
+        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+        console.log(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay)); // Wait before retry
+      } else {
+        throw error; // Rethrow any other errors immediately
+      }
+    }
   }
 
-  return result as T;
+  throw new Error(`Max retries reached. Last error: ${lastError?.message}`);
+};
+
+// Randomized User-Agent to avoid detection
+const getRandomUserAgent = (): string => {
+  const userAgents = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36"
+  ];
+  return userAgents[Math.floor(Math.random() * userAgents.length)];
 };
 
 const tryParseJson = (text: string) => {
