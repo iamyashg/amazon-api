@@ -1,4 +1,4 @@
-![Proxiy AD #1](https://general-assets.thetuhin.com/rapidproxy.png)
+[![Proxiy AD #1](https://general-assets.thetuhin.com/rapidproxy.png)](https://www.rapidproxy.io/?ref=amazon)
 
 Scaling your data collection? Try [RapidProxy](https://www.rapidproxy.io/?ref=amazon) residential proxies with free testing and non-expiring traffic. Build reliable scraping and automation workflows with high-quality Ips.
 
